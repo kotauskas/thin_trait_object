@@ -1,0 +1,31 @@
+[package]
+authors = ["Kotauskas <v.toncharov@gmail.com>"]
+edition = "2018"
+name = "thin_trait_object"
+version = "1.0.0"
+
+documentation = "https://docs.rs/thin_trait_object/*/thin_trait_object"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/kotauskas/thin_trait_object"
+
+description = "One pointer wide trait objects which are also FFI safe, allowing traits to be passed to/from and implemented by C ABI code"
+
+categories = ["development-tools::ffi", "rust-patterns", "no-std"]
+keywords = ["ffi", "trait", "dyn", "virtual"]
+
+[lib]
+path = "./src/lib.rs"
+proc-macro = true
+
+[dependencies]
+once_cell = "1.5"
+proc-macro2 = "1.0"
+quote = "1.0"
+replace_with = "0.1"
+# Sadly cannot use the default configuration because it can't parse traits
+syn = {version = "1.0", features = ["full", "extra-traits"]}
+
+[features]
+default = ["std"]
+std = []
