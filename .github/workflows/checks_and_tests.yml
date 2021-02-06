@@ -1,0 +1,40 @@
+name: Checks and tests
+
+on: [push, pull_request]
+
+jobs:
+  check_and_test:
+    strategy:
+        matrix:
+          toolchain: ["1.46.0", nightly]
+    
+    name: On ${{ matrix.toolchain }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v2
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+            toolchain: ${{ matrix.toolchain }}
+            profile: minimal
+            override: true
+            components: clippy
+      
+      - name: Run Clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          # Clippy on 1.46 doesn't have some lints from the latest nightly that we use, so we
+          # disable warning about that altogether.
+          args: "-- -A clippy::unknown_clippy_lints"
+        env:
+          RUSTFLAGS: -D warnings
+      
+      - name: Run tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+        env:
+          RUSTFLAGS: -D warnings
