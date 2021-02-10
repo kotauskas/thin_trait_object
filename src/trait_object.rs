@@ -1,8 +1,8 @@
 //! Generates the owned trait object struct. Not to be confused with the representation struct.
 
 use proc_macro2::{Ident, Punct, Spacing, TokenStream, TokenTree};
-use syn::{Attribute, FnArg, Lifetime, Path, Visibility, punctuated::Punctuated, token};
-use quote::{quote, format_ident, ToTokens};
+use quote::{format_ident, quote, ToTokens};
+use syn::{punctuated::Punctuated, token, Attribute, FnArg, Lifetime, Path, Visibility};
 
 use crate::{attr::StageStash, marker_traits::MarkerTrait, vtable::VtableItem};
 
@@ -56,18 +56,9 @@ pub fn generate_trait_object<
                 .into_iter()
                 .map(|param| match param {
                     FnArg::Typed(param) => param.pat.into_token_stream(),
-                    FnArg::Receiver(receiver) => {
-                        // First cast cannot change mutability, but the second one
-                        // can, so we have to distinguish between &self and &mut self
-                        let first_pointer_cast = if receiver.mutability.is_some() {
-                            quote! {self as *mut _}
-                        } else {
-                            quote! {self as *const _}
-                        };
-                        quote! {
-                            #first_pointer_cast as *mut _
-                        }
-                    }
+                    FnArg::Receiver(..) => quote! {
+                        self.0.as_ptr() as *mut _
+                    },
                 })
                 .collect::<Punctuated<_, token::Comma>>();
             let call_name = signature.ident.clone();
