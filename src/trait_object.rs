@@ -33,7 +33,7 @@ pub fn generate_trait_object<
     struct MarkerToImpl<'a>(&'a MarkerTrait, &'a Path);
     impl<'a> ToTokens for MarkerToImpl<'a> {
         fn to_tokens(&self, token_stream: &mut TokenStream) {
-            token_stream.extend(self.into_token_stream());
+            token_stream.extend((*self).into_token_stream());
         }
         fn into_token_stream(self) -> TokenStream {
             self.0.as_impl_for(self.1)
@@ -154,8 +154,8 @@ pub fn generate_trait_object<
             #[inline]
             pub fn new<
                 T: #trait_name + Sized #marker_bounds #lifetime_bounds #creation_bound
-            >(val: T) -> Self {
-                unsafe { Self::from_raw(#repr_name::__thintraitobjectmacro_repr_create(val) as *mut _) }
+                >(val: T) -> Self {
+                    unsafe { Self::from_raw(#repr_name::__thintraitobjectmacro_repr_create(val) as *mut _) }
             }
             /// Creates a thin trait object directly from a raw pointer to its vtable.
             ///
