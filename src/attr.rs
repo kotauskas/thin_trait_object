@@ -1,8 +1,12 @@
 //! The main body of the attribute macro. Uses entirely `proc_macro2` stuff to make unit testing possible — compile error conversions and `proc_macro` conversions are delegated to the crate root wrapper.
 
-use std::{borrow::Borrow, convert::TryFrom};
+use super::{marker_traits::*, options::*, repr::*, trait_object::*, vtable::*};
 use proc_macro2::{Ident, Span, TokenStream};
+use quote::{format_ident, quote};
+use std::convert::TryFrom;
 use syn::{
+    parse::Parser,
+    punctuated::Punctuated,
     Abi,
     Attribute,
     ItemTrait,
@@ -11,16 +15,11 @@ use syn::{
     PathSegment,
     TraitBound,
     Visibility,
-    parse::{Parser},
-    punctuated::Punctuated,
-    token::{Colon2},
 };
-use quote::{format_ident, quote};
-use super::{options::*, vtable::*, repr::*, trait_object::*, marker_traits::*};
 
 pub fn attribute_main(attr: TokenStream, item: TokenStream) -> Result<TokenStream, syn::Error> {
     let options = Punctuated::parse_terminated.parse2(attr)?;
-    let config = Config::try_from(options)?;
+    let config = Config::from(options);
     let trait_def = syn::parse2::<ItemTrait>(item)?;
     if !trait_def.generics.params.is_empty() {
         return Err(syn::Error::new_spanned(
@@ -106,9 +105,8 @@ struct Config {
     drop_abi: Option<Abi>,
     marker_traits: Option<Vec<MarkerTrait>>,
 }
-impl TryFrom<AttrOptions> for Config {
-    type Error = syn::Error;
-    fn try_from(options: AttrOptions) -> Result<Self, Self::Error> {
+impl From<AttrOptions> for Config {
+    fn from(options: AttrOptions) -> Self {
         let mut config = Self::default();
         for option in options {
             match option {
@@ -118,12 +116,7 @@ impl TryFrom<AttrOptions> for Config {
                     config.vtable_name = Some(additions.name);
                 }
                 AttrOption::InlineVtable { val, .. } => {
-                    let val = match val.to_string().borrow() {
-                        "true" => true,
-                        "false" => false,
-                        _ => return Err(syn::Error::new(val.span(), "expected `true` or `false`")),
-                    };
-                    config.inline_vtable = val;
+                    config.inline_vtable = val.value;
                 }
                 AttrOption::TraitObject { additions, .. } => {
                     config.trait_object_attributes = additions.attributes;
@@ -141,7 +134,7 @@ impl TryFrom<AttrOptions> for Config {
                 }
             }
         }
-        Ok(config)
+        config
     }
 }
 // Not using the derive because at some point I'm gonna introduce a config entry which should have
@@ -190,7 +183,7 @@ fn path_to_box() -> Path {
     push_segment("Box");
 
     Path {
-        leading_colon: Some(Colon2::default()),
+        leading_colon: Some(Default::default()),
         segments,
     }
 }

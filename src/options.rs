@@ -1,16 +1,17 @@
 //! Everything related to parsing the options of the attribute macro.
 
-use std::borrow::Borrow;
 use proc_macro2::Ident;
+use std::borrow::Borrow;
 use syn::{
-    Attribute,
-    LitStr,
-    Token,
-    Visibility,
     parenthesized,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
     token,
+    Attribute,
+    LitBool,
+    LitStr,
+    Token,
+    Visibility,
 };
 
 use crate::marker_traits::MarkerTrait;
@@ -50,7 +51,7 @@ pub enum AttrOption {
     InlineVtable {
         name: custom_token::InlineVtable,
         eq: Token![=],
-        val: Ident, // Boolean literals are parsed as identifiers
+        val: LitBool,
     },
     /// Overrides the visibility modifier, name and optionally adds attributes to the generated thin trait object struct.
     ///
@@ -176,11 +177,11 @@ impl Parse for OutputAdditions {
 }
 
 pub mod custom_token {
-    use syn::{
-        Ident,
-        parse::{Parse, ParseStream},
-    };
     use proc_macro2::Span;
+    use syn::{
+        parse::{Parse, ParseStream},
+        Ident,
+    };
 
     macro_rules! custom_tokens {
         ($name:ident, $string:literal) => (
