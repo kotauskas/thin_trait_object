@@ -250,17 +250,6 @@
 
 use proc_macro::TokenStream;
 
-mod attr;
-use attr::*;
-pub(crate) mod marker_traits;
-pub(crate) mod options;
-pub(crate) mod repr;
-pub(crate) mod trait_object;
-pub(crate) mod vtable;
-
-#[cfg(test)]
-mod tests;
-
 /// Creates a thin trait object interface for a trait.
 #[proc_macro_attribute]
 pub fn thin_trait_object(attr: TokenStream, mut item: TokenStream) -> TokenStream {
@@ -282,6 +271,35 @@ pub fn thin_trait_object(attr: TokenStream, mut item: TokenStream) -> TokenStrea
     item.extend(Some(output));
     item
 }
+
+#[macro_use]
+pub(crate) mod util {
+    macro_rules! define_path {
+    ($($segment:literal),+) => {{
+        let mut segments = ::syn::punctuated::Punctuated::new();
+        let mksegment = |x| ::syn::PathSegment {
+            ident: ::syn::Ident::new(x, ::proc_macro2::Span::call_site()),
+            arguments: ::syn::PathArguments::None,
+        };
+        $(segments.push(mksegment($segment));)+
+        ::syn::Path {
+            leading_colon: Some(Default::default()),
+            segments,
+        }
+    }};
+}
+}
+
+mod attr;
+use attr::*;
+pub(crate) mod marker_traits;
+pub(crate) mod options;
+pub(crate) mod repr;
+pub(crate) mod trait_object;
+pub(crate) mod vtable;
+
+#[cfg(test)]
+mod tests;
 
 /// Convinces [`cargo geiger`] that the crate has unsafe code.
 ///

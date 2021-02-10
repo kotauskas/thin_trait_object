@@ -1,9 +1,14 @@
 //! Generates the vtable struct itself.
 
-use std::convert::TryFrom;
+use crate::attr::StageStash;
 use proc_macro2::{Ident, Span, TokenStream};
+use quote::{quote, ToTokens};
 use replace_with::replace_with_or_abort;
+use std::convert::TryFrom;
 use syn::{
+    punctuated::Punctuated,
+    spanned::Spanned,
+    token::{Colon, Paren, Unsafe},
     Abi,
     AttrStyle,
     Attribute,
@@ -25,16 +30,11 @@ use syn::{
     TraitItem,
     TraitItemMethod,
     Type,
+    TypePath,
     TypePtr,
-    TypeTuple,
     Variadic,
     Visibility,
-    punctuated::Punctuated,
-    spanned::Spanned,
-    token::{Colon, Paren, Unsafe},
 };
-use quote::{quote, ToTokens};
-use crate::attr::StageStash;
 
 pub fn generate_vtable(
     stash: &mut StageStash,
@@ -132,9 +132,9 @@ impl VtableFnArg {
                     star_token: Default::default(),
                     const_token: None,
                     mutability: Some(Default::default()),
-                    elem: Type::Tuple(TypeTuple {
-                        paren_token: Default::default(),
-                        elems: Punctuated::new(),
+                    elem: Type::Path(TypePath {
+                        qself: None,
+                        path: define_path!["core", "ffi", "c_void"],
                     })
                     .into(),
                 }),
