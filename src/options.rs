@@ -131,20 +131,20 @@ impl Parse for AttrOption {
             "trait_object" => {
                 let inside_parens;
                 Self::TraitObject {
-                    name: input.parse()?,
+                    name: custom_token::TraitObject(ident.span()),
                     paren: parenthesized!(inside_parens in input),
                     additions: inside_parens.parse()?,
                 }
             }
             "drop_abi" => Self::DropAbi {
-                name: input.parse()?,
+                name: custom_token::DropAbi(ident.span()),
                 eq: input.parse()?,
                 abi: input.parse()?,
             },
             "marker_traits" => {
                 let inside_parens;
                 Self::MarkerTraits {
-                    name: input.parse()?,
+                    name: custom_token::MarkerTraits(ident.span()),
                     paren: parenthesized!(inside_parens in input),
                     marker_traits: inside_parens.call(Punctuated::parse_terminated)?,
                 }
