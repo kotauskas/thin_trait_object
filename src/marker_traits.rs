@@ -1,19 +1,19 @@
 //! Handling of marker supertraits of traits annotated with `#[thin_trait_object]`.
 
-use std::{borrow::Borrow, iter};
 use once_cell::unsync::Lazy;
 use proc_macro2::{Ident, Span, TokenStream};
+use quote::quote;
+use std::{borrow::Borrow, iter};
 use syn::{
+    parse::{Parse, ParseStream},
+    punctuated::Punctuated,
+    token,
     Lifetime,
     Path,
     PathSegment,
     TraitBound,
     TypeParamBound,
-    parse::{Parse, ParseStream},
-    punctuated::Punctuated,
-    token,
 };
-use quote::quote;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct MarkerTrait {
