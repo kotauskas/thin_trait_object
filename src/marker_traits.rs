@@ -106,7 +106,7 @@ pub fn default_marker_filter(bound: TraitBound) -> Option<(TraitBound, bool)> {
 }
 
 thread_local! {
-    static LOOKUP_TABLE: Lazy<[(&'static str, Path, bool); 5]> = Lazy::new(|| {
+    static LOOKUP_TABLE: Lazy<[(&'static str, Path, bool); 4]> = Lazy::new(|| {
         [
             (
                 "Send",
@@ -117,11 +117,6 @@ thread_local! {
                 "Sync",
                 make_path![mkseg("core"), mkseg("marker"), mkseg("Sync")],
                 true,
-            ),
-            (
-                "Unpin",
-                make_path![mkseg("core"), mkseg("marker"), mkseg("Unpin")],
-                false,
             ),
             (
                 "UnwindSafe",

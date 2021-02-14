@@ -101,7 +101,7 @@
 //!   ```
 //! - `marker_traits(...)` — specifies a comma-separated list of traits which are to be considered marker traits, i.e. be implemented via an empty `impl` block on the generated thin trait object structure if the trait definition lists them as supertraits. Unsafe traits in the list need to be prefixed with the `unsafe` keyword.
 //!   
-//!   By default, the list is `marker_traits(unsafe Send, unsafe Sync, unsafe Unpin, UnwindSafe, RefUnwindSafe)`.
+//!   By default, the list is `marker_traits(unsafe Send, unsafe Sync, UnwindSafe, RefUnwindSafe)`.
 //!   
 //!   See the [Supertraits](#supertraits) section for more on how the macro interacts with supertraits.
 //!   
@@ -275,19 +275,19 @@ pub fn thin_trait_object(attr: TokenStream, mut item: TokenStream) -> TokenStrea
 #[macro_use]
 pub(crate) mod util {
     macro_rules! define_path {
-    ($($segment:literal),+) => {{
-        let mut segments = ::syn::punctuated::Punctuated::new();
-        let mksegment = |x| ::syn::PathSegment {
-            ident: ::syn::Ident::new(x, ::proc_macro2::Span::call_site()),
-            arguments: ::syn::PathArguments::None,
-        };
-        $(segments.push(mksegment($segment));)+
-        ::syn::Path {
-            leading_colon: Some(Default::default()),
-            segments,
-        }
-    }};
-}
+        ($($segment:literal),+) => {{
+            let mut segments = ::syn::punctuated::Punctuated::new();
+            let mksegment = |x| ::syn::PathSegment {
+                ident: ::syn::Ident::new(x, ::proc_macro2::Span::call_site()),
+                arguments: ::syn::PathArguments::None,
+            };
+            $(segments.push(mksegment($segment));)+
+            ::syn::Path {
+                leading_colon: Some(Default::default()),
+                segments,
+            }
+        }};
+    }
 }
 
 mod attr;
@@ -297,9 +297,6 @@ pub(crate) mod options;
 pub(crate) mod repr;
 pub(crate) mod trait_object;
 pub(crate) mod vtable;
-
-#[cfg(test)]
-mod tests;
 
 /// Convinces [`cargo geiger`] that the crate has unsafe code.
 ///

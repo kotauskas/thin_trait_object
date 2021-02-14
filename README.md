@@ -99,7 +99,7 @@ The following options are supported:
   ```
 - `marker_traits(...)` — specifies a comma-separated list of traits which are to be considered marker traits, i.e. be implemented via an empty `impl` block on the generated thin trait object structure if the trait definition lists them as supertraits. Unsafe traits in the list need to be prefixed with the `unsafe` keyword.
 
-  By default, the list is `marker_traits(unsafe Send, unsafe Sync, unsafe Unpin, UnwindSafe, RefUnwindSafe)`.
+  By default, the list is `marker_traits(unsafe Send, unsafe Sync, UnwindSafe, RefUnwindSafe)`.
 
   See the [Supertraits](#supertraits) section for more on how the macro interacts with supertraits.
 
