@@ -15,8 +15,8 @@ pub fn generate_trait_object<
     visibility: Visibility,
     inline_vtable: bool,
     attributes: impl IntoIterator<Item = &'a Attribute> + Clone,
-    markers: impl IntoIterator<IntoIter = M> + Clone,
-    lifetime_bounds: impl IntoIterator<IntoIter = L> + Clone,
+    markers: impl IntoIterator<IntoIter = M, Item = M::Item> + Clone,
+    lifetime_bounds: impl IntoIterator<IntoIter = L, Item = L::Item> + Clone,
 ) -> syn::Result<TokenStream> {
     let StageStash {
         trait_name,
