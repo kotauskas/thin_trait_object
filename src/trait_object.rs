@@ -27,7 +27,6 @@ pub fn generate_trait_object<
         ..
     } = stash;
     let trait_object_name_as_path = trait_object_name.clone().into();
-    let num_markers = markers.clone().into_iter().len();
     let num_lifetimes = lifetime_bounds.clone().into_iter().len();
     #[derive(Copy, Clone)]
     struct MarkerToImpl<'a>(&'a MarkerTrait, &'a Path);
@@ -36,7 +35,8 @@ pub fn generate_trait_object<
             token_stream.extend((*self).into_token_stream());
         }
         fn into_token_stream(self) -> TokenStream {
-            self.0.as_impl_for(self.1)
+            let path = self.1;
+            self.0.as_impl_for(&quote! {#path <'_>})
         }
     }
     struct VtableItemToImplThunk<'a> {
@@ -98,14 +98,13 @@ pub fn generate_trait_object<
             TokenStream::new()
         }
     };
-    let marker_bounds =
-        markers
-            .into_iter()
-            .fold(maybe_plus(num_markers != 0), |mut token_stream, marker| {
-                marker.path.to_tokens(&mut token_stream);
-                token::Add::default().to_tokens(&mut token_stream);
-                token_stream
-            });
+    let marker_bounds = markers
+        .into_iter()
+        .fold(TokenStream::new(), |mut token_stream, marker| {
+            marker.path.to_tokens(&mut token_stream);
+            token::Add::default().to_tokens(&mut token_stream);
+            token_stream
+        });
     let mut has_static_lifetime = false;
     let lifetime_bounds = lifetime_bounds.into_iter().fold(
         maybe_plus(num_lifetimes != 0),
@@ -138,7 +137,7 @@ pub fn generate_trait_object<
             ::core::marker::PhantomData<&'inner ()>
         };
         let generics = quote! { <'inner> };
-        let creation_bound = quote! { + 'inner };
+        let creation_bound = quote! { 'inner };
         let impl_elided_lifetime = quote! { <'_> };
         (phantomdata, generics, creation_bound, impl_elided_lifetime)
     };
@@ -153,7 +152,7 @@ pub fn generate_trait_object<
             /// Constructs a boxed thin trait object from a type implementing the trait.
             #[inline]
             pub fn new<
-                T: #trait_name + Sized #marker_bounds #lifetime_bounds #creation_bound
+                T: #trait_name + Sized + #marker_bounds #lifetime_bounds #creation_bound
                 >(val: T) -> Self {
                     unsafe { Self::from_raw(#repr_name::__thintraitobjectmacro_repr_create(val) as *mut _) }
             }

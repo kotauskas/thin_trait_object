@@ -61,6 +61,7 @@
 //!   
 //!   Example:
 //!   ```no_run
+//!   # use thin_trait_object::*;
 //!   #[thin_trait_object(
 //!       vtable(
 //!           /// Documentation for my generated vtable.
@@ -84,6 +85,7 @@
 //!   
 //!   Example:
 //!   ```rust
+//!   # use thin_trait_object::*;
 //!   #[thin_trait_object(
 //!       inline_vtable = true
 //!   )]
@@ -94,6 +96,7 @@
 //!   
 //!   Example:
 //!   ```rust
+//!   # use thin_trait_object::*;
 //!   #[thin_trait_object(
 //!       drop_abi = "C" // Equivalent to extern "C" on a function/method
 //!   )]
@@ -107,6 +110,7 @@
 //!   
 //!   Example:
 //!   ```rust
+//!   # use thin_trait_object::*;
 //!   trait SafeTrait {}
 //!   unsafe trait UnsafeTrait {}
 //!   
@@ -144,8 +148,8 @@
 //!     fn creator_of_foo() -> *mut c_void;
 //! }
 //! # */
-//! # extern "C" unsafe fn eater_of_foo(_foo: *mut c_void) {}
-//! # extern "C" unsafe fn creator_of_foo() -> *mut c_void {
+//! # unsafe extern "C" fn eater_of_foo(_foo: *mut c_void) {}
+//! # unsafe extern "C" fn creator_of_foo() -> *mut c_void {
 //! #     BoxedFoo::new("Rust pretending to be C".to_string()).into_raw() as *mut _
 //! # }
 //!
@@ -156,7 +160,7 @@
 //!     eater_of_foo(foo.into_raw() as *mut c_void);
 //! }
 //! // Acquire ownership of a different implementation from the C side.
-//! let foo = unsafe { BoxedFoo::from_raw(creator_of_foo()) };
+//! let foo = unsafe { BoxedFoo::from_raw(creator_of_foo() as *mut ()) };
 //! foo.say_hello();
 //! ```
 //! The C side would do:
@@ -231,7 +235,7 @@
 //!         self.a(); // Redirect to the method from the A trait implementation
 //!     }
 //! }
-//! impl A for BoxedB {
+//! impl A for BoxedB<'_> {
 //!     fn a(&self) {
 //!         // Redirect to the hidden thunk, which will use the actual implementation of the method
 //!         self._thunk_a();

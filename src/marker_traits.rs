@@ -2,7 +2,7 @@
 
 use once_cell::unsync::Lazy;
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens};
 use std::{borrow::Borrow, iter};
 use syn::{
     parse::{Parse, ParseStream},
@@ -21,7 +21,7 @@ pub struct MarkerTrait {
     pub path: Path,
 }
 impl MarkerTrait {
-    pub fn as_impl_for(&self, implementor: &Path) -> TokenStream {
+    pub fn as_impl_for(&self, implementor: &impl ToTokens) -> TokenStream {
         let marker_unsafety = self.unsafety.as_ref();
         let marker_path = &self.path;
         quote! {
