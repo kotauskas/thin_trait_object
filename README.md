@@ -148,7 +148,7 @@ unsafe {
     eater_of_foo(foo.into_raw() as *mut c_void);
 }
 // Acquire ownership of a different implementation from the C side.
-let foo = unsafe { BoxedFoo::from_raw(creator_of_foo()) };
+let foo = unsafe { BoxedFoo::from_raw(creator_of_foo() as *mut ()) };
 foo.say_hello();
 ```
 The C side would do:
@@ -219,7 +219,7 @@ trait B: A {
         self.a(); // Redirect to the method from the A trait implementation
     }
 }
-impl A for BoxedB {
+impl A for BoxedB<'_> {
     fn a(&self) {
         // Redirect to the hidden thunk, which will use the actual implementation of the method
         self._thunk_a();
