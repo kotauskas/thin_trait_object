@@ -29,14 +29,23 @@ pub fn generate_trait_object<
     let trait_object_name_as_path = trait_object_name.clone().into();
     let num_lifetimes = lifetime_bounds.clone().into_iter().len();
     #[derive(Copy, Clone)]
-    struct MarkerToImpl<'a>(&'a MarkerTrait, &'a Path);
+    struct MarkerToImpl<'a> {
+        marker_trait: &'a MarkerTrait,
+        implementor: &'a Path,
+        elided_lifetime: bool,
+    }
     impl<'a> ToTokens for MarkerToImpl<'a> {
         fn to_tokens(&self, token_stream: &mut TokenStream) {
             token_stream.extend((*self).into_token_stream());
         }
         fn into_token_stream(self) -> TokenStream {
-            let path = self.1;
-            self.0.as_impl_for(&quote! {#path <'_>})
+            let implementor = self.implementor;
+            let implementor = if self.elided_lifetime {
+                quote! {#implementor <'_>}
+            } else {
+                quote! {implementor} // Performance is my passion
+            };
+            self.marker_trait.as_impl_for(&implementor)
         }
     }
     struct VtableItemToImplThunk<'a> {
@@ -81,16 +90,6 @@ pub fn generate_trait_object<
         }
     }
 
-    attributes
-        .clone()
-        .into_iter()
-        .try_for_each(check_attribute)?;
-    let attributes = attributes.into_iter();
-    let marker_impls = markers
-        .clone()
-        .into_iter()
-        .map(|x| MarkerToImpl(x, &trait_object_name_as_path));
-
     let maybe_plus = |yes| {
         if yes {
             TokenStream::from(TokenTree::Punct(Punct::new('+', Spacing::Alone)))
@@ -98,13 +97,6 @@ pub fn generate_trait_object<
             TokenStream::new()
         }
     };
-    let marker_bounds = markers
-        .into_iter()
-        .fold(TokenStream::new(), |mut token_stream, marker| {
-            marker.path.to_tokens(&mut token_stream);
-            token::Add::default().to_tokens(&mut token_stream);
-            token_stream
-        });
     let mut has_static_lifetime = false;
     let lifetime_bounds = lifetime_bounds.into_iter().fold(
         maybe_plus(num_lifetimes != 0),
@@ -117,6 +109,29 @@ pub fn generate_trait_object<
             token_stream
         },
     );
+
+    attributes
+        .clone()
+        .into_iter()
+        .try_for_each(check_attribute)?;
+    let attributes = attributes.into_iter();
+    let marker_impls = markers
+        .clone()
+        .into_iter()
+        .map(|marker_trait| MarkerToImpl {
+            marker_trait,
+            implementor: &trait_object_name_as_path,
+            elided_lifetime: !has_static_lifetime,
+        });
+
+    let marker_bounds = markers
+        .into_iter()
+        .fold(TokenStream::new(), |mut token_stream, marker| {
+            marker.path.to_tokens(&mut token_stream);
+            token::Add::default().to_tokens(&mut token_stream);
+            token_stream
+        });
+
     let impl_thunks = vtable_items
         .iter()
         .cloned()
