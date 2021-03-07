@@ -246,10 +246,17 @@ impl VtableItem {
             output: self.output,
         }
     }
-    pub fn make_raw(&mut self) {
+    pub fn make_raw(&mut self) -> bool {
+        let mut replaced = false;
         for input in &mut self.inputs {
-            replace_with_or_abort(input, |x| x.into_bare_arg_with_ptr_receiver().into());
+            replace_with_or_abort(input, |x| {
+                if matches!(x, VtableFnArg::Receiver(..)) {
+                    replaced = true;
+                }
+                x.into_bare_arg_with_ptr_receiver().into()
+            });
         }
+        replaced
     }
 }
 impl TryFrom<TraitItemMethod> for VtableItem {

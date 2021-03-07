@@ -109,7 +109,12 @@ fn generate_vtable_and_thunks(
     let mut vtable_contents = TokenStream::new();
     let mut thunk_methods = TokenStream::new();
     for mut entry in vtable_entries {
-        entry.make_raw();
+        let _has_receiver = entry.make_raw();
+        // TODO not do this if _has_receiver is false. This is a compatibility
+        // hazard since older code may rely on being able to put unsafe
+        // functions into all vtable entries, including associated ones, so
+        // any code assigning `unsafe fn` to an associated function entry will
+        // stop compiling.
         entry.make_unsafe();
         // Create the list of arguments decorated with the collision-avoiding
         // names. Using mixed-site hygeine could be a better solution.
