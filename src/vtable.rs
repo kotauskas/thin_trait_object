@@ -41,6 +41,7 @@ pub fn generate_vtable(
     visibility: Visibility,
     attributes: impl IntoIterator<Item = Attribute>,
     drop_abi: Option<&Abi>,
+    store_layout: bool,
 ) -> TokenStream {
     let StageStash {
         vtable_items: items,
@@ -78,12 +79,21 @@ pub fn generate_vtable(
         }
     }
     let items = items.iter().cloned().map(VtableItemToFnPtr);
+    let size_and_align = if store_layout {
+        quote! {
+            pub size: usize,
+            pub align: usize,
+        }
+    } else {
+        quote! {}
+    };
     quote! {
         #[derive(Copy, Clone, Debug, Hash)]
         #all_attributes
         #visibility struct #name {
+            #size_and_align
             #(pub #items,)*
-            pub drop: unsafe #drop_abi fn(*mut ::core::ffi::c_void)
+            pub drop: unsafe #drop_abi fn(*mut ::core::ffi::c_void),
         }
     }
 }

@@ -108,6 +108,21 @@ pub enum AttrOption {
         paren: token::Paren,
         marker_traits: Punctuated<MarkerTrait, Token![,]>,
     },
+    /// Sets whether the vtable will contain the size and alignment of the implementation it corresponds to.
+    ///
+    /// # Example
+    /// ```rust
+    /// # /*
+    /// #[thin_trait_object(
+    ///     store_layout = true,
+    /// )]
+    /// # */
+    /// ```
+    StoreLayout {
+        name: custom_token::StoreLayout,
+        eq: Token![=],
+        val: LitBool,
+    },
 }
 impl Parse for AttrOption {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
@@ -149,6 +164,11 @@ impl Parse for AttrOption {
                     marker_traits: inside_parens.call(Punctuated::parse_terminated)?,
                 }
             }
+            "store_layout" => Self::StoreLayout {
+                name: custom_token::StoreLayout(ident.span()),
+                eq: input.parse()?,
+                val: input.parse()?,
+            },
             _ => {
                 return Err(syn::Error::new_spanned(
                     ident,
@@ -213,5 +233,6 @@ pub mod custom_token {
         (TraitObject, "trait_object"),
         (DropAbi, "drop_abi"),
         (MarkerTraits, "marker_traits"),
+        (StoreLayout, "store_layout"),
     }
 }

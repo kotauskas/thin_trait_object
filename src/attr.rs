@@ -72,12 +72,14 @@ pub fn attribute_main(attr: TokenStream, item: TokenStream) -> Result<TokenStrea
             .unwrap_or_else(|| trait_visibility.clone()),
         config.vtable_attributes,
         config.drop_abi.as_ref(),
+        config.store_layout,
     );
     let repr = generate_repr(
         &mut stash,
         config.inline_vtable,
         path_to_box(),
         config.drop_abi.as_ref(),
+        config.store_layout,
     );
     let trait_object = generate_trait_object(
         &mut stash,
@@ -107,6 +109,7 @@ struct Config {
     trait_object_name: Option<Ident>,
     drop_abi: Option<Abi>,
     marker_traits: Option<Vec<MarkerTrait>>,
+    store_layout: bool,
 }
 impl From<AttrOptions> for Config {
     fn from(options: AttrOptions) -> Self {
@@ -135,6 +138,9 @@ impl From<AttrOptions> for Config {
                 AttrOption::MarkerTraits { marker_traits, .. } => {
                     config.marker_traits = Some(marker_traits.into_iter().collect());
                 }
+                AttrOption::StoreLayout { val, .. } => {
+                    config.store_layout = val.value;
+                }
             }
         }
         config
@@ -155,6 +161,7 @@ impl Default for Config {
             trait_object_name: None,
             drop_abi: None,
             marker_traits: None,
+            store_layout: false,
         }
     }
 }

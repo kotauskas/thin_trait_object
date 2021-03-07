@@ -1,18 +1,19 @@
 //! Generates the representation struct.
 
-use proc_macro2::{Ident, TokenStream};
-use quote::{quote, format_ident, ToTokens};
-use syn::{Abi, BareFnArg, Path, token::Colon};
 use crate::{
     attr::StageStash,
     vtable::{VtableFnArg, VtableItem},
 };
+use proc_macro2::{Ident, TokenStream};
+use quote::{format_ident, quote, ToTokens};
+use syn::{token::Colon, Abi, BareFnArg, Path};
 
 pub fn generate_repr(
     stash: &mut StageStash,
     inline_vtable: bool,
     path_to_box: Path,
     drop_abi: Option<&Abi>,
+    store_layout: bool,
 ) -> TokenStream {
     let StageStash {
         repr_name,
@@ -51,6 +52,14 @@ pub fn generate_repr(
         };
         (vtable_field_type, ctor_val)
     };
+    let size_and_align = if store_layout {
+        quote! {
+            size: ::core::mem::size_of::<__ThinTraitObjectMacro_ReprGeneric0>(),
+            align: ::core::mem::align_of::<__ThinTraitObjectMacro_ReprGeneric0>(),
+        }
+    } else {
+        quote! {}
+    };
     // Here comes the cluttered part: heavily prefixed names.
     let repr = quote! {
         #[repr(C)]
@@ -62,6 +71,7 @@ pub fn generate_repr(
             __ThinTraitObjectMacro_ReprGeneric0: #trait_name
         > #repr_name<__ThinTraitObjectMacro_ReprGeneric0> {
             const __THINTRAITOBJECTMACRO_VTABLE: #vtable_name = #vtable_name {
+                #size_and_align
                 #vtable_contents
                 drop: Self :: __thintraitobjectmacro_repr_drop,
             };

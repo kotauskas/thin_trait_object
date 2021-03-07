@@ -124,6 +124,16 @@
 //!   )]
 //!   trait MyTrait: SafeTrait + UnsafeTrait {}
 //!   ```
+//! - `store_layout = <true/false>` — specifies whether the generated vtable should also contain the `size` and `align` fields, storing the size of the stored type and its preferred alignment respectively. Set to `false` by default for compatibility.
+//!
+//!   Example:
+//!   ```rust
+//!   # use thin_trait_object::*;
+//!   #[thin_trait_object(
+//!       store_layout = true
+//!   )]
+//!   # trait MyTrait {}
+//!   ```
 //!
 //! ## Use with FFI
 //! One of the main focuses of the macro is FFI, which is why usage of the macro with FFI is simple and natural:
