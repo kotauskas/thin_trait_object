@@ -54,6 +54,9 @@ pub fn attribute_main(attr: TokenStream, item: TokenStream) -> Result<TokenStrea
             },
         ),
     );
+    let has_static_bound = lifetime_bounds
+        .iter()
+        .any(|lifetime| lifetime.ident == "static");
     let mut stash = StageStash {
         trait_name: trait_def.ident.clone(),
         vtable_name,
@@ -82,9 +85,9 @@ pub fn attribute_main(attr: TokenStream, item: TokenStream) -> Result<TokenStrea
             .trait_object_visibility
             .unwrap_or_else(|| trait_visibility.clone()),
         config.inline_vtable,
+        has_static_bound,
         &config.trait_object_attributes,
         &markers,
-        &lifetime_bounds,
     )?;
     // We don't need to add the original input to the output here because the
     // public wrapper does that, see its definition for more on that.

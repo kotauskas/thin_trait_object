@@ -1,22 +1,18 @@
 //! Generates the owned trait object struct. Not to be confused with the representation struct.
 
-use proc_macro2::{Ident, Punct, Spacing, TokenStream, TokenTree};
+use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
-use syn::{punctuated::Punctuated, token, Attribute, FnArg, Lifetime, Path, Visibility};
+use syn::{punctuated::Punctuated, token, Attribute, FnArg, Path, Visibility};
 
 use crate::{attr::StageStash, marker_traits::MarkerTrait, vtable::VtableItem};
 
-pub fn generate_trait_object<
-    'a,
-    M: Iterator<Item = &'a MarkerTrait> + ExactSizeIterator,
-    L: Iterator<Item = &'a Lifetime> + ExactSizeIterator,
->(
+pub fn generate_trait_object<'a>(
     stash: &mut StageStash,
     visibility: Visibility,
     inline_vtable: bool,
+    has_static_bound: bool,
     attributes: impl IntoIterator<Item = &'a Attribute> + Clone,
-    markers: impl IntoIterator<IntoIter = M, Item = M::Item> + Clone,
-    lifetime_bounds: impl IntoIterator<IntoIter = L, Item = L::Item> + Clone,
+    markers: impl IntoIterator<Item = &'a MarkerTrait>,
 ) -> syn::Result<TokenStream> {
     let StageStash {
         trait_name,
@@ -27,7 +23,6 @@ pub fn generate_trait_object<
         ..
     } = stash;
     let trait_object_name_as_path = trait_object_name.clone().into();
-    let num_lifetimes = lifetime_bounds.clone().into_iter().len();
     #[derive(Copy, Clone)]
     struct MarkerToImpl<'a> {
         marker_trait: &'a MarkerTrait,
@@ -48,15 +43,11 @@ pub fn generate_trait_object<
             self.marker_trait.as_impl_for(&implementor)
         }
     }
-    struct VtableItemToImplThunk<'a> {
-        item: VtableItem,
-        vtable_name: &'a Ident,
-        inline_vtable: bool,
-    }
-    impl<'a> ToTokens for VtableItemToImplThunk<'a> {
+    struct VtableItemToImplThunk(VtableItem);
+    impl ToTokens for VtableItemToImplThunk {
         fn to_tokens(&self, token_stream: &mut TokenStream) {
             let signature = self
-                .item
+                .0
                 .clone()
                 .into_signature(|x| format_ident!("__arg{}", x));
             let call_args = signature
@@ -71,18 +62,10 @@ pub fn generate_trait_object<
                 })
                 .collect::<Punctuated<_, token::Comma>>();
             let call_name = signature.ident.clone();
-            let vtable_name = self.vtable_name;
-            let vtable_pointer_cast = if self.inline_vtable {
-                quote! { as *mut }
-            } else {
-                quote! { as *mut &'static }
-            };
             (quote! {
                 #signature {
                     unsafe {
-                        (
-                            (&*(self.0.as_ptr() #vtable_pointer_cast #vtable_name)).#call_name
-                        )(#call_args)
+                        ((self.vtable()).#call_name)(#call_args)
                     }
                 }
             })
@@ -90,57 +73,19 @@ pub fn generate_trait_object<
         }
     }
 
-    let maybe_plus = |yes| {
-        if yes {
-            TokenStream::from(TokenTree::Punct(Punct::new('+', Spacing::Alone)))
-        } else {
-            TokenStream::new()
-        }
-    };
-    let mut has_static_lifetime = false;
-    let lifetime_bounds = lifetime_bounds.into_iter().fold(
-        maybe_plus(num_lifetimes != 0),
-        |mut token_stream, lifetime| {
-            if lifetime.ident == "static" {
-                has_static_lifetime = true;
-            }
-            lifetime.to_tokens(&mut token_stream);
-            token::Add::default().to_tokens(&mut token_stream);
-            token_stream
-        },
-    );
-
     attributes
         .clone()
         .into_iter()
         .try_for_each(check_attribute)?;
     let attributes = attributes.into_iter();
-    let marker_impls = markers
-        .clone()
-        .into_iter()
-        .map(|marker_trait| MarkerToImpl {
-            marker_trait,
-            implementor: &trait_object_name_as_path,
-            elided_lifetime: !has_static_lifetime,
-        });
+    let marker_impls = markers.into_iter().map(|marker_trait| MarkerToImpl {
+        marker_trait,
+        implementor: &trait_object_name_as_path,
+        elided_lifetime: !has_static_bound,
+    });
 
-    let marker_bounds = markers
-        .into_iter()
-        .fold(TokenStream::new(), |mut token_stream, marker| {
-            marker.path.to_tokens(&mut token_stream);
-            token::Add::default().to_tokens(&mut token_stream);
-            token_stream
-        });
-
-    let impl_thunks = vtable_items
-        .iter()
-        .cloned()
-        .map(|item| VtableItemToImplThunk {
-            item,
-            vtable_name: &vtable_name,
-            inline_vtable,
-        });
-    let (phantomdata, generics, creation_bound, impl_elided_lifetime) = if has_static_lifetime {
+    let impl_thunks = vtable_items.iter().cloned().map(VtableItemToImplThunk);
+    let (phantomdata, generics, creation_bound, impl_elided_lifetime) = if has_static_bound {
         let phantomdata = quote! {
             ::core::marker::PhantomData<&'static ()>
         };
@@ -156,6 +101,16 @@ pub fn generate_trait_object<
         let impl_elided_lifetime = quote! { <'_> };
         (phantomdata, generics, creation_bound, impl_elided_lifetime)
     };
+    let vtable_getter_impl = {
+        let vtable_pointer_cast = if inline_vtable {
+            quote! { as *mut }
+        } else {
+            quote! { as *mut &'static }
+        };
+        quote! {
+            unsafe { &*(self.0.as_ptr() #vtable_pointer_cast #vtable_name) }
+        }
+    };
     let result = quote! {
         #(#attributes)*
         #[repr(transparent)]
@@ -167,7 +122,7 @@ pub fn generate_trait_object<
             /// Constructs a boxed thin trait object from a type implementing the trait.
             #[inline]
             pub fn new<
-                T: #trait_name + Sized + #marker_bounds #lifetime_bounds #creation_bound
+                T: #trait_name + Sized + #creation_bound
                 >(val: T) -> Self {
                     unsafe { Self::from_raw(#repr_name::__thintraitobjectmacro_repr_create(val) as *mut _) }
             }
@@ -213,6 +168,10 @@ pub fn generate_trait_object<
                 let pointer = self.as_raw();
                 ::core::mem::forget(self);
                 pointer
+            }
+            /// Retrieves the raw vtable of the contained trait object.
+            pub fn vtable(&self) -> &#vtable_name {
+                #vtable_getter_impl
             }
         }
         #[allow(clippy::ref_in_deref)] // see https://github.com/rust-lang/rust-clippy/issues/6658
