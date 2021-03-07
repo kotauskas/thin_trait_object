@@ -229,6 +229,76 @@ impl A for BoxedB<'_> {
 This is necessary because the macro has no access to `A` and thus doesn't know that it needs to add its methods to the vtable.
 A little hacky, but there is no cleaner way of doing this using only procedural macros. If you have any suggestions for improving this pattern, raise an issue explaining your proposed solution or create a PR.
 
+### Output reference
+The following is a comprehensive list of everything the macro emits:
+- **The trait itself**, with all other attributes.
+- **A virtual dispatch table struct definition.**
+
+  The name can be customized via the `vtable(...)` configuration option (see the *Configuring the macro* section); the default name is `{trait name}Vtable`, as in, `FooVtable` for a trait named `Foo`.
+
+  The virtual dispatch table is defined as follows:
+  ```rust
+  #[repr(C)] // Can be customized via configuration options
+  #[derive(Copy, Clone, Debug, Hash)]
+  struct FooVtable {
+      // One field for every method in the trait
+      drop: unsafe fn(::core::ffi::c_void), // ABI can be customized via configuration options
+  }
+  ```
+  The other fields, ones besides `drop`, each have the same name as their corresponding trait method. The signatures are nearly identical, with two differences:
+  - `&self` or `&mut self`, if present, are replaced with [`*mut ::core::ffi::c_void`][`core::ffi::c_void`];
+  - If there was no `unsafe` on the trait method, it is added automatically, since the pointer passed as the first argument is never validated.
+- **A thin trait object struct definition.**
+
+  The name can be customized via the `trait_object(...)` configuration option (see the *Configuring the macro* section); the default name is `Boxed{trait name}`, as in, `BoxedFoo` for a trait named `Foo`.
+
+  The virtual dispatch table is defined as follows:
+  ```rust
+  #[repr(transparent)]
+  struct BoxedFoo<'inner>(
+      ::core::ptr::NonNull<{vtable name}>,
+      ::core::marker::PhantomData<&'inner ()>,
+  );
+  ```
+  If the trait has a `'static` lifetime bound, the `'inner` lifetime parameter is not emitted, since all possible contained implementations are restricted to be `'static`.
+
+  The following methods and associated functions are present on the boxed thin trait object structure:
+  - ```rust
+    fn new<T: {trait name} + Sized + 'inner>(val: T) -> Self
+    ```
+    Constructs a boxed thin trait object from a type implementing the trait. The `'inner` bound is replaced with `'static` if the `'static` lifetime is one of the supertraits on the base trait.
+  - ```rust
+    const unsafe fn from_raw(ptr: *mut ()) -> Self
+    ```
+    Creates a thin trait object directly from a raw pointer to its vtable.
+
+    ### Safety
+    This constructor, by its nature, is hugely unsafe and should be avoided when possible. The following invariants must be upheld:
+    - The pointer must not be null and must point to a valid thin trait object as expected by its vtable which is not uninitialized;
+    - The function pointers in the vtable must not be null and must point to valid functions with correct ABI and signature;
+    - The function pointers must have the same safety contract as implied and not a stronger one: only cause UB if the vtable pointer passed to them is invalid or, if those are unsafe in the trait itself, cause UB if the safety contract in their declarations is violated;
+    - If the trait is unsafe, the function pointers must follow the trait's contract for valid implementations;
+    - The pointer was not returned by `as_raw` which was called on an object which was not put into [`ManuallyDrop`] or consumed by [`mem::forget`], otherwise undefined behavior will be invoked when both are dropped.
+  - ```rust
+    const fn as_raw(&self) -> *mut ()
+    ```
+    Extracts the contained pointer to the trait object.
+
+    Unlike `into_raw`, ownership of the pointer is not released, and as such will be dropped normally. Unless the original copy is removed via [`mem::forget`] or [`ManuallyDrop`], calling `from_raw` and then dropping will cause undefined behavior.
+  - ```rust
+    fn into_raw(self) -> *mut ()
+    ```
+    Releases ownership of the trait object, returning the contained pointer. It is the caller's responsibility to drop the trait object at a later time using `from_raw`.
+
+    For a version which does not release ownership, see `as_raw`.
+  - ```rust
+    fn vtable(&self) -> &{vtable name}
+    ```
+    Retrieves the raw vtable of the contained trait object.
+
 [*FFI-Safe Polymorphism: Thin Trait Objects*]: https://adventures.michaelfbryan.com/posts/ffi-safe-polymorphism-in-rust/ " "
 [virtual dispatch table]: https://en.wikipedia.org/wiki/Virtual_method_table " "
 [`core::ptr::NonNull`]: https://doc.rust-lang.org/std/ptr/struct.NonNull.html " "
+[`core::ffi::c_void`]: https://doc.rust-lang.org/std/ffi/enum.c_void.html " "
+[`ManuallyDrop`]: https://doc.rust-lang.org/std/mem/struct.ManuallyDrop.html " "
+[`mem::forget`]: https://doc.rust-lang.org/std/mem/fn.forget.html " "
