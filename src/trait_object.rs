@@ -178,6 +178,11 @@ pub fn generate_trait_object<'a>(
         impl #trait_name for #trait_object_name #impl_elided_lifetime {
             #(#impl_thunks)*
         }
+        impl ::core::ops::Drop for #trait_object_name #impl_elided_lifetime {
+            fn drop(&mut self) {
+                unsafe { (self.vtable().drop)(self.0.as_ptr() as *mut ::core::ffi::c_void) }
+            }
+        }
         #(#marker_impls)*
     };
     Ok(result)
