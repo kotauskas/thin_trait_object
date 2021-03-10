@@ -373,17 +373,51 @@ pub fn thin_trait_object(attr: TokenStream, mut item: TokenStream) -> TokenStrea
 #[macro_use]
 pub(crate) mod util {
     macro_rules! define_path {
-        ($($segment:literal),+) => {{
-            let mut segments = ::syn::punctuated::Punctuated::new();
-            let mksegment = |x| ::syn::PathSegment {
-                ident: ::syn::Ident::new(x, ::proc_macro2::Span::call_site()),
-                arguments: ::syn::PathArguments::None,
-            };
-            $(segments.push(mksegment($segment));)+
+        (::, $($segment:literal),+) => {{
             ::syn::Path {
                 leading_colon: Some(Default::default()),
-                segments,
+                segments: define_path_segments!($($segment),+),
             }
+        }};
+        (::, $($segment:expr),+) => {{
+            ::syn::Path {
+                leading_colon: Some(Default::default()),
+                segments: define_path_segments!($($segment),+),
+            }
+        }};
+        ($($segment:literal),+) => {{
+            ::syn::Path {
+                leading_colon: None,
+                segments: define_path_segments!($($segment),+),
+            }
+        }};
+        ($($segment:expr),+) => {{
+            ::syn::Path {
+                leading_colon: None,
+                segments: define_path_segments!($($segment),+),
+            }
+        }};
+    }
+    macro_rules! define_path_segments {
+        ($($segment:literal),+) => {{
+            let mut segments = ::syn::punctuated::Punctuated::new();
+            $(
+                segments.push(::syn::PathSegment {
+                    ident: ::syn::Ident::new($segment, ::proc_macro2::Span::call_site()),
+                    arguments: ::syn::PathArguments::None,
+                });
+            )+
+            segments
+        }};
+        ($($segment:expr),+) => {{
+            let mut segments = ::syn::punctuated::Punctuated::new();
+            $(
+                segments.push(::syn::PathSegment {
+                    ident: $segment,
+                    arguments: ::syn::PathArguments::None,
+                });
+            )+
+            segments
         }};
     }
 }

@@ -144,7 +144,7 @@ impl VtableFnArg {
                     mutability: Some(Default::default()),
                     elem: Type::Path(TypePath {
                         qself: None,
-                        path: define_path!["core", "ffi", "c_void"],
+                        path: define_path![::, "core", "ffi", "c_void"],
                     })
                     .into(),
                 }),
@@ -160,9 +160,10 @@ impl ToTokens for VtableFnArg {
         }
     }
 }
-impl From<FnArg> for VtableFnArg {
-    fn from(arg: FnArg) -> Self {
-        match arg {
+impl TryFrom<FnArg> for VtableFnArg {
+    type Error = syn::Error;
+    fn try_from(value: FnArg) -> Result<Self, Self::Error> {
+        let success = match value {
             FnArg::Typed(ty) => Self::Normal(BareFnArg {
                 attrs: ty.attrs,
                 name: match *ty.pat {
@@ -171,8 +172,18 @@ impl From<FnArg> for VtableFnArg {
                 },
                 ty: *ty.ty,
             }),
-            FnArg::Receiver(receiver) => Self::Receiver(receiver),
-        }
+            FnArg::Receiver(receiver) => {
+                if receiver.reference.is_none() {
+                    // Pass-by-value, cannot have that just yet
+                    return Err(syn::Error::new_spanned(
+                        receiver.self_token,
+                        "`#[thin_trait_object]` does not support pass-by-value just yet",
+                    ));
+                }
+                Self::Receiver(receiver)
+            }
+        };
+        Ok(success)
     }
 }
 impl From<BareFnArg> for VtableFnArg {
@@ -285,10 +296,8 @@ impl TryFrom<TraitItemMethod> for VtableItem {
             inputs: signature
                 .inputs
                 .into_iter()
-                .map(VtableFnArg::from)
-                // At this point, the &self receiver is already a pointer,
-                // it's done in fn_arg_to_bare_fn_arg
-                .collect(),
+                .map(VtableFnArg::try_from)
+                .collect::<Result<_, _>>()?,
             variadic: signature.variadic,
             output: signature.output,
         })
@@ -322,7 +331,7 @@ fn generics_to_lifetimes(generics: Generics) -> Result<BoundLifetimes, syn::Erro
     if let Some(where_clause) = generics.where_clause {
         return Err(syn::Error::new_spanned(
             where_clause,
-            "trait methods with `where` clauses are not FFI-safe",
+            "trait methods with `where` clauses are not object-safe",
         ));
     }
     let lifetimes = {
@@ -333,13 +342,13 @@ fn generics_to_lifetimes(generics: Generics) -> Result<BoundLifetimes, syn::Erro
                 GenericParam::Type(ty) => {
                     return Err(syn::Error::new_spanned(
                         ty,
-                        "generic type parameters are not FFI-safe",
+                        "generic type parameters are not object-safe",
                     ))
                 }
                 GenericParam::Const(constant) => {
                     return Err(syn::Error::new_spanned(
                         constant,
-                        "generic constant parameters are not FFI-safe",
+                        "generic constant parameters are not object-safe",
                     ))
                 }
             }
