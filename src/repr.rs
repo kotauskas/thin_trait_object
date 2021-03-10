@@ -6,7 +6,7 @@ use crate::{
 };
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote, ToTokens};
-use syn::{token::Colon, Abi, BareFnArg, Path};
+use syn::{token::Colon, Abi, BareFnArg, Path, Signature};
 
 pub fn generate_repr(
     stash: &mut StageStash,
@@ -22,8 +22,12 @@ pub fn generate_repr(
         vtable_items,
         ..
     } = stash;
-    let (vtable_contents, thunk_methods) =
-        generate_vtable_and_thunks(&repr_name, vtable_items.iter().cloned());
+    let (vtable_contents, thunk_methods) = generate_vtable_and_thunks(
+        &trait_name,
+        &repr_name,
+        vtable_items.iter().cloned(),
+        |_| true, // TODO
+    );
 
     // Perform necessary branching depending on vtable style in advance.
     let (vtable_field_type, ctor_val) = if inline_vtable {
@@ -103,12 +107,16 @@ pub fn repr_name_from_trait_name(trait_name: Ident) -> Ident {
 }
 
 fn generate_vtable_and_thunks(
+    trait_name: &Ident,
     repr_name: &Ident,
     vtable_entries: impl IntoIterator<Item = VtableItem>,
+    mut double_hop_predicate: impl FnMut(&VtableItem) -> bool,
 ) -> (TokenStream, TokenStream) {
     let mut vtable_contents = TokenStream::new();
     let mut thunk_methods = TokenStream::new();
     for mut entry in vtable_entries {
+        let double_hop = double_hop_predicate(&entry);
+
         let _has_receiver = entry.make_raw();
         // TODO not do this if _has_receiver is false. This is a compatibility
         // hazard since older code may rely on being able to put unsafe
@@ -125,39 +133,69 @@ fn generate_vtable_and_thunks(
             arg
         });
 
-        // Clone this out before handing them over to to_signature().
-        let name = entry.name.clone();
+        if double_hop {
+            // Clone this out before handing them over to into_signature().
+            let name = entry.name.clone();
 
-        let thunk_name = format_ident!("__thintraitobjectmacro_thunk_{}", &entry.name);
-        let thunk_signature = {
-            let mut signature = entry.into_signature(nth_arg);
-            signature.ident = thunk_name.clone();
-            signature
-        };
+            let thunk_name = format_ident!("__thintraitobjectmacro_thunk_{}", &entry.name);
+            let thunk_signature = {
+                let mut signature = entry.into_signature(nth_arg);
+                signature.ident = thunk_name.clone();
+                signature
+            };
 
-        // Remember that this gets called in a loop, so we add one vtable
-        // constructor entry for every vtable entry.
-        (quote! {
-            #name: Self :: #thunk_name,
-        })
-        .to_tokens(&mut vtable_contents);
+            // Remember that this gets called in a loop, so we add one vtable
+            // constructor entry for every vtable entry.
+            write_vtable_thunk_entry(&name, &thunk_name, &mut vtable_contents);
 
-        // Generate the thunks, again, one for every vtable entry. Those are
-        // pretty simple, actually: just unsafely convert the pointer to a
-        // reference to the repr struct and call the appropriate method,
-        // offsetting into the actual value.
-        (quote! {
-            #thunk_signature {
-                (
-                    *(__thintraitobjectmacro_arg0
-                        as *mut #repr_name<__ThinTraitObjectMacro_ReprGeneric0>
-                    )
-                ).__thintraitobjectmacro_repr_value.#name(#(#thunk_call_args)*)
-            }
-        })
-        .to_tokens(&mut thunk_methods);
+            // Generate the thunks, again, one for every vtable entry. Those are
+            // pretty simple, actually: just unsafely convert the pointer to a
+            // reference to the repr struct and call the appropriate method,
+            // offsetting into the actual value.
+            write_thunk(
+                &name,
+                &repr_name,
+                thunk_signature,
+                thunk_call_args,
+                &mut thunk_methods,
+            );
+        } else {
+            write_vtable_single_hop_entry(&entry.name, &trait_name, &mut vtable_contents);
+        }
     }
     (vtable_contents, thunk_methods)
+}
+
+fn write_vtable_thunk_entry(name: &Ident, val: &Ident, out: &mut TokenStream) {
+    (quote! {
+        #name: Self :: #val,
+    })
+    .to_tokens(out);
+}
+fn write_vtable_single_hop_entry(name: &Ident, trait_name: &Ident, out: &mut TokenStream) {
+    (quote! {
+        #name: <__ThinTraitObjectMacro_ReprGeneric0 as #trait_name> :: #name,
+    })
+    .to_tokens(out);
+}
+fn write_thunk(
+    name: &Ident,
+    repr_name: &Ident,
+    signature: Signature,
+    args: impl IntoIterator<Item = BareFnArg>,
+    out: &mut TokenStream,
+) {
+    let args = args.into_iter();
+    (quote! {
+        #signature {
+            (
+                *(__thintraitobjectmacro_arg0
+                    as *mut #repr_name<__ThinTraitObjectMacro_ReprGeneric0>
+                )
+            ).__thintraitobjectmacro_repr_value.#name(#(#args)*)
+        }
+    })
+    .to_tokens(out);
 }
 
 fn nth_arg(n: u32) -> Ident {
