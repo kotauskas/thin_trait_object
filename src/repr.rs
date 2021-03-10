@@ -117,13 +117,10 @@ fn generate_vtable_and_thunks(
     for mut entry in vtable_entries {
         let double_hop = double_hop_predicate(&entry);
 
-        let _has_receiver = entry.make_raw();
-        // TODO not do this if _has_receiver is false. This is a compatibility
-        // hazard since older code may rely on being able to put unsafe
-        // functions into all vtable entries, including associated ones, so
-        // any code assigning `unsafe fn` to an associated function entry will
-        // stop compiling.
-        entry.make_unsafe();
+        let has_receiver = entry.make_raw();
+        if has_receiver {
+            entry.make_unsafe();
+        }
         // Create the list of arguments decorated with the collision-avoiding
         // names. Using mixed-site hygeine could be a better solution.
         let mut argument_counter = 1_u32;
