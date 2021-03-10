@@ -2,7 +2,7 @@
 authors = ["Kotauskas <v.toncharov@gmail.com>"]
 edition = "2018"
 name = "thin_trait_object"
-version = "1.1.0"
+version = "1.1.1"
 
 documentation = "https://docs.rs/thin_trait_object/*/thin_trait_object"
 license = "MIT OR Apache-2.0"
