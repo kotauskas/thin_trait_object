@@ -224,7 +224,7 @@ impl VtableItem {
         let variadic = &self.variadic;
         let output = &self.output;
         quote! {
-            #lifetimes #unsafety #abi fn ( #(#inputs)* #variadic ) #output
+            #lifetimes #unsafety #abi fn ( #(#inputs,)* #variadic ) #output
         }
     }
     pub fn into_signature(self, mut default_argname: impl FnMut(u32) -> Ident) -> Signature {

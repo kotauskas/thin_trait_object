@@ -182,7 +182,7 @@ fn write_thunk(
     args: impl IntoIterator<Item = BareFnArg>,
     out: &mut TokenStream,
 ) {
-    let args = args.into_iter();
+    let args = args.into_iter().map(|arg| arg.name.unwrap().0);
     (quote! {
         #signature {
             (
