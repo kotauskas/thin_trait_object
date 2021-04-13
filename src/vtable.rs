@@ -17,6 +17,7 @@ use syn::{
     FnArg,
     GenericParam,
     Generics,
+    LitStr,
     Pat,
     PatIdent,
     PatType,
@@ -78,7 +79,31 @@ pub fn generate_vtable(
             quote! { #name : #ty }
         }
     }
-    let items = items.iter().cloned().map(VtableItemToFnPtr);
+    struct VtableItemToDebugImplLine(VtableItem);
+    impl<'a> ToTokens for VtableItemToDebugImplLine {
+        fn to_tokens(&self, out: &mut TokenStream) {
+            out.extend(self.to_token_stream());
+        }
+        fn to_token_stream(&self) -> TokenStream {
+            let name = self.0.name.clone();
+            let namelit = LitStr::new(&name.to_string(), Span::call_site());
+            quote! { .field(#namelit, &(self.#name as *mut ())) }
+        }
+    }
+    struct VtableItemToHashImplLine(VtableItem);
+    impl<'a> ToTokens for VtableItemToHashImplLine {
+        fn to_tokens(&self, out: &mut TokenStream) {
+            out.extend(self.to_token_stream());
+        }
+        fn to_token_stream(&self) -> TokenStream {
+            let name = self.0.name.clone();
+            quote! { (self.#name as *mut ()).hash(state) }
+        }
+    }
+    let vtable_entries = items.iter().cloned().map(VtableItemToFnPtr);
+    let debug_impl_lines = items.iter().cloned().map(VtableItemToDebugImplLine);
+    let hash_impl_lines = items.iter().cloned().map(VtableItemToHashImplLine);
+    let name_strlit = LitStr::new(&name.to_string(), Span::call_site());
     let size_and_align = if store_layout {
         quote! {
             pub size: usize,
@@ -88,12 +113,24 @@ pub fn generate_vtable(
         quote! {}
     };
     quote! {
-        #[derive(Copy, Clone, Debug, Hash)]
+        #[derive(Copy, Clone)]
         #all_attributes
         #visibility struct #name {
             #size_and_align
-            #(pub #items,)*
+            #(pub #vtable_entries,)*
             pub drop: unsafe #drop_abi fn(*mut ::core::ffi::c_void),
+        }
+        impl ::core::fmt::Debug for #name {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+                f.debug_struct(#name_strlit)
+                    #(#debug_impl_lines)*
+                    .finish()
+            }
+        }
+        impl ::core::hash::Hash for #name {
+            fn hash<H: ::core::hash::Hasher>(&self, state: &mut H) {
+                #(#hash_impl_lines;)*
+            }
         }
     }
 }
