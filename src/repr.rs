@@ -1,5 +1,6 @@
 //! Generates the representation struct.
 
+use crate::util::IdentOrPath;
 use crate::{
     attr::StageStash,
     vtable::{VtableFnArg, VtableItem},
@@ -7,7 +8,6 @@ use crate::{
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 use syn::{token::Colon, Abi, BareFnArg, Path, Signature};
-use crate::util::IdentOrPath;
 
 pub fn generate_repr(
     stash: &mut StageStash,
@@ -66,7 +66,8 @@ pub fn generate_repr(
         quote! {}
     };
     let init_super_type = if let Some(ref super_trait) = stash.super_trait {
-        let super_repr_name = super_trait.clone()
+        let super_repr_name = super_trait
+            .clone()
             .with_simple_name(repr_name_from_trait_name(super_trait.simple_name().clone()));
         quote! {
             super_trait_vtable: #super_repr_name::<__ThinTraitObjectMacro_ReprGeneric0>::__THINTRAITOBJECTMACRO_VTABLE,

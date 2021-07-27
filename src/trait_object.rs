@@ -1,11 +1,15 @@
 //! Generates the owned trait object struct. Not to be confused with the representation struct.
 
-use proc_macro2::{TokenStream, Ident};
+use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 use syn::{punctuated::Punctuated, token, Attribute, FnArg, Visibility};
 
-use crate::{attr::{StageStash, TargetImpl}, marker_traits::MarkerTrait, vtable::VtableItem};
 use crate::util::IdentOrPath;
+use crate::{
+    attr::{StageStash, TargetImpl},
+    marker_traits::MarkerTrait,
+    vtable::VtableItem,
+};
 
 #[derive(Clone, Debug)]
 pub struct TraitObjectName {
@@ -60,7 +64,7 @@ pub fn generate_trait_object<'a>(
     struct VtableItemToImplThunk<'a> {
         item: VtableItem,
         vtable_method_name: &'a Ident,
-        data_ptr_method_name: &'a Ident
+        data_ptr_method_name: &'a Ident,
     }
     impl ToTokens for VtableItemToImplThunk<'_> {
         fn to_tokens(&self, token_stream: &mut TokenStream) {
@@ -77,7 +81,7 @@ pub fn generate_trait_object<'a>(
                     FnArg::Receiver(..) => {
                         let name = self.data_ptr_method_name;
                         quote!(self.#name() as *mut _)
-                    },
+                    }
                 })
                 .collect::<Punctuated<_, token::Comma>>();
             let call_name = signature.ident.clone();
@@ -100,14 +104,19 @@ pub fn generate_trait_object<'a>(
     let attributes = attributes.into_iter();
     let marker_impls = markers.into_iter().map(|marker_trait| MarkerToImpl {
         marker_trait,
-        implementor: &trait_object_name
+        implementor: &trait_object_name,
     });
 
     let vtable_method_name = target_impl.vtable_method_name();
     let data_ptr_method_name = target_impl.data_ptr_method_name();
-    let impl_thunks = vtable_items.iter().cloned().map(|item| VtableItemToImplThunk {
-        item, vtable_method_name: &vtable_method_name, data_ptr_method_name: &data_ptr_method_name
-    });
+    let impl_thunks = vtable_items
+        .iter()
+        .cloned()
+        .map(|item| VtableItemToImplThunk {
+            item,
+            vtable_method_name: &vtable_method_name,
+            data_ptr_method_name: &data_ptr_method_name,
+        });
     let (phantomdata, generics, creation_bound, impl_elided_lifetime) = if has_static_bound {
         let phantomdata = quote! {
             ::core::marker::PhantomData<&'static ()>
@@ -137,9 +146,12 @@ pub fn generate_trait_object<'a>(
     let cast_funcs = match super_trait {
         Some(ref super_trait) => {
             use heck::SnakeCase;
-            let super_trait_object = super_trait.clone().with_simple_name(format_ident!("Boxed{}", super_trait.simple_name()));
+            let super_trait_object = super_trait
+                .clone()
+                .with_simple_name(format_ident!("Boxed{}", super_trait.simple_name()));
             let simple_name = super_trait.simple_name();
-            let snake_case = Ident::new(&simple_name.to_string().to_snake_case(), simple_name.span());
+            let snake_case =
+                Ident::new(&simple_name.to_string().to_snake_case(), simple_name.span());
             let cast_ref_func_name = format_ident!("as_{}", snake_case);
             let cast_val_func_name = format_ident!("into_{}", snake_case);
             // TODO: What if our super-trait has no lifetime bound but we do?
@@ -155,14 +167,19 @@ pub fn generate_trait_object<'a>(
                     unsafe { core::mem::transmute(self) }
                 }
             }
-        },
-        None => quote!()
+        }
+        None => quote!(),
     };
     let impl_declaration = match *target_impl {
-        TargetImpl::SpecificTraitObject { ref trait_object_name } => {
+        TargetImpl::SpecificTraitObject {
+            ref trait_object_name,
+        } => {
             quote!(impl #trait_name for #trait_object_name)
-        },
-        TargetImpl::BlanketTrait { trait_name: ref blanket_trait_name, vtable_method: _ } => {
+        }
+        TargetImpl::BlanketTrait {
+            trait_name: ref blanket_trait_name,
+            vtable_method: _,
+        } => {
             quote! {
                 impl<Target: #blanket_trait_name> #trait_name for Target
             }

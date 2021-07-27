@@ -2,7 +2,18 @@
 
 use proc_macro2::Ident;
 use std::borrow::Borrow;
-use syn::{parenthesized, parse::{Parse, ParseStream}, punctuated::Punctuated, token, Attribute, LitBool, LitStr, Token, Visibility, Path};
+use syn::{
+    parenthesized,
+    parse::{Parse, ParseStream},
+    punctuated::Punctuated,
+    token,
+    Attribute,
+    LitBool,
+    LitStr,
+    Path,
+    Token,
+    Visibility,
+};
 
 use crate::marker_traits::MarkerTrait;
 
@@ -130,8 +141,8 @@ pub enum AttrOption {
     Inheritance {
         name: custom_token::Inheritance,
         paren: token::Paren,
-        options: InheritanceOptions
-    }
+        options: InheritanceOptions,
+    },
 }
 impl Parse for AttrOption {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
@@ -183,7 +194,7 @@ impl Parse for AttrOption {
                 Self::Inheritance {
                     name: custom_token::Inheritance(ident.span()),
                     paren: parenthesized!(inside_parens in input),
-                    options: inside_parens.call(Punctuated::parse_terminated)?
+                    options: inside_parens.call(Punctuated::parse_terminated)?,
                 }
             }
             _ => {
@@ -203,14 +214,14 @@ pub enum InheritanceOption {
     Extends {
         name: custom_token::Extends,
         paren: token::Paren,
-        super_type: Path
+        super_type: Path,
     },
     /// Specifies whether this type is a possible supertrait
     PossibleSuperTrait {
         name: custom_token::PossibleSuperTrait,
         eq: Token![=],
-        val: LitBool
-    }
+        val: LitBool,
+    },
 }
 impl Parse for InheritanceOption {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
@@ -223,21 +234,19 @@ impl Parse for InheritanceOption {
                 Self::Extends {
                     name: custom_token::Extends(ident.span()),
                     paren: parenthesized!(inside_parens in input),
-                    super_type: inside_parens.parse()?
-                }
-            },
-            "possible_super_trait" => {
-                Self::PossibleSuperTrait {
-                    name: custom_token::PossibleSuperTrait(ident.span()),
-                    eq: input.parse()?,
-                    val: input.parse()?,
+                    super_type: inside_parens.parse()?,
                 }
             }
+            "possible_super_trait" => Self::PossibleSuperTrait {
+                name: custom_token::PossibleSuperTrait(ident.span()),
+                eq: input.parse()?,
+                val: input.parse()?,
+            },
             _ => {
                 return Err(syn::Error::new_spanned(
                     ident,
                     "\
-expected `extends`, `possible_super_trait`"
+expected `extends`, `possible_super_trait`",
                 ));
             }
         };
@@ -262,11 +271,11 @@ impl Parse for OutputAdditions {
 
 pub mod custom_token {
     use proc_macro2::Span;
+    use syn::spanned::Spanned;
     use syn::{
         parse::{Parse, ParseStream},
         Ident,
     };
-    use syn::spanned::Spanned;
 
     macro_rules! custom_tokens {
         ($name:ident, $string:literal) => (

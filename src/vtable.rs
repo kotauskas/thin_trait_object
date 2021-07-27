@@ -1,6 +1,7 @@
 //! Generates the vtable struct itself.
 
 use crate::attr::StageStash;
+use crate::inheritance::super_vtable_type;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
 use replace_with::replace_with_or_abort;
@@ -36,7 +37,6 @@ use syn::{
     Variadic,
     Visibility,
 };
-use crate::inheritance::super_vtable_type;
 
 pub fn generate_vtable(
     stash: &mut StageStash,

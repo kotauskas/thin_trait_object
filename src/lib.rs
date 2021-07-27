@@ -372,10 +372,10 @@ pub fn thin_trait_object(attr: TokenStream, mut item: TokenStream) -> TokenStrea
 
 #[macro_use]
 pub(crate) mod util {
-    use syn::Path;
     use proc_macro2::Ident;
-    use syn::spanned::Spanned;
     use quote::ToTokens;
+    use syn::spanned::Spanned;
+    use syn::Path;
     macro_rules! define_path {
         (::, $($segment:literal),+) => {{
             ::syn::Path {
@@ -484,12 +484,12 @@ pub(crate) mod util {
 
 mod attr;
 use attr::*;
+pub(crate) mod inheritance;
 pub(crate) mod marker_traits;
 pub(crate) mod options;
 pub(crate) mod repr;
 pub(crate) mod trait_object;
 pub(crate) mod vtable;
-pub(crate) mod inheritance;
 
 /// Convinces [`cargo geiger`] that the crate has unsafe code.
 ///

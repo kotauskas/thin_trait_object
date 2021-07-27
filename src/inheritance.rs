@@ -1,11 +1,11 @@
 //! Handling of inheritance
 
-use proc_macro2::{Ident, TokenStream};
-use syn::{Visibility, Path};
-use quote::{quote, format_ident, ToTokens};
 use crate::attr::{StageStash, TargetImpl};
-use crate::options::{InheritanceOptions, InheritanceOption};
+use crate::options::{InheritanceOption, InheritanceOptions};
 use crate::util::IdentOrPath;
+use proc_macro2::{Ident, TokenStream};
+use quote::{format_ident, quote, ToTokens};
+use syn::{Path, Visibility};
 
 fn blanket_trait_name<P: IdentOrPath>(target_trait: P) -> P {
     let simple_name = format_ident!("ThinTraitObject_Implements_{}", target_trait.simple_name());
@@ -18,7 +18,7 @@ pub struct PossibleSuperTrait {
     target_trait: Ident,
     vtable_type: Ident,
     vis: Visibility,
-    blanket_impl: Option<TokenStream>
+    blanket_impl: Option<TokenStream>,
 }
 impl PossibleSuperTrait {
     pub fn blanket_trait_name(&self) -> Ident {
@@ -53,21 +53,25 @@ impl ToTokens for PossibleSuperTrait {
     }
 }
 
-pub fn handle_possible_super_trait(stash: &mut StageStash, vis: Visibility, config: &InheritanceConfig) -> syn::Result<Option<PossibleSuperTrait>> {
+pub fn handle_possible_super_trait(
+    stash: &mut StageStash,
+    vis: Visibility,
+    config: &InheritanceConfig,
+) -> syn::Result<Option<PossibleSuperTrait>> {
     let trait_object_name = &stash.trait_object_name;
     if config.possible_super_trait {
         if &stash.vtable_name != super_vtable_type(&stash.trait_name).simple_name() {
             // TODO: Lift this restriction
             return Err(syn::Error::new(
                 stash.vtable_name.span(),
-                "When a type is a possible super-trait, vtable names can't currently be customized"
+                "When a type is a possible super-trait, vtable names can't currently be customized",
             ));
         }
         let mut res = PossibleSuperTrait {
             vtable_type: stash.vtable_name.clone(),
             vis,
             target_trait: stash.trait_name.clone(),
-            blanket_impl: None
+            blanket_impl: None,
         };
         let blanket_trait_name = res.blanket_trait_name();
         let vtable_method_name = vtable_method_name(&res.target_trait);
@@ -86,7 +90,7 @@ pub fn handle_possible_super_trait(stash: &mut StageStash, vis: Visibility, conf
         });
         stash.target_impl = TargetImpl::BlanketTrait {
             trait_name: blanket_trait_name,
-            vtable_method: vtable_method_name
+            vtable_method: vtable_method_name,
         };
         Ok(Some(res))
     } else {
@@ -98,7 +102,7 @@ pub struct ExtendsSuperTrait {
     our_target: TargetImpl,
     super_trait: Path,
     super_trait_blanket_impl: Path,
-    super_vtable_type: Path
+    super_vtable_type: Path,
 }
 impl ExtendsSuperTrait {
     fn generate_blanket_impl(&self) -> TokenStream {
@@ -119,14 +123,19 @@ impl ExtendsSuperTrait {
             }
         };
         match *our_target {
-            TargetImpl::SpecificTraitObject { ref trait_object_name } => {
+            TargetImpl::SpecificTraitObject {
+                ref trait_object_name,
+            } => {
                 quote! {
                     unsafe impl #super_trait_blanket_impl for #trait_object_name {
                         #actual_impl
                     }
                 }
             }
-            TargetImpl::BlanketTrait { ref trait_name, vtable_method: _ } => {
+            TargetImpl::BlanketTrait {
+                ref trait_name,
+                vtable_method: _,
+            } => {
                 quote! {
                     unsafe impl<Target: #trait_name> #super_trait_blanket_impl for Target {
                         #actual_impl
@@ -149,11 +158,15 @@ impl ToTokens for ExtendsSuperTrait {
 pub fn super_vtable_type(super_trait: &impl IdentOrPath) -> Path {
     // TODO: Support for custom super-type vtable names
     // When this is fixed, remove the check above
-    super_trait.clone().into_path().with_simple_name(
-        format_ident!("{}Vtable", super_trait.simple_name())
-    )
+    super_trait
+        .clone()
+        .into_path()
+        .with_simple_name(format_ident!("{}Vtable", super_trait.simple_name()))
 }
-pub fn handle_extends(stash: &mut StageStash, config: &InheritanceConfig) -> syn::Result<Option<ExtendsSuperTrait>> {
+pub fn handle_extends(
+    stash: &mut StageStash,
+    config: &InheritanceConfig,
+) -> syn::Result<Option<ExtendsSuperTrait>> {
     if let Some(ref super_trait) = config.extends {
         let super_vtable_type = super_vtable_type(super_trait);
         let super_trait_blanket_impl = blanket_trait_name(super_trait.clone());
@@ -161,7 +174,7 @@ pub fn handle_extends(stash: &mut StageStash, config: &InheritanceConfig) -> syn
             our_target: stash.target_impl.clone(),
             super_trait_blanket_impl,
             super_vtable_type: super_vtable_type.into(),
-            super_trait: super_trait.clone()
+            super_trait: super_trait.clone(),
         }))
     } else {
         Ok(None)
@@ -170,7 +183,7 @@ pub fn handle_extends(stash: &mut StageStash, config: &InheritanceConfig) -> syn
 
 pub struct InheritanceConfig {
     pub extends: Option<Path>,
-    possible_super_trait: bool
+    possible_super_trait: bool,
 }
 
 impl From<InheritanceOptions> for InheritanceConfig {
@@ -195,7 +208,7 @@ impl Default for InheritanceConfig {
     fn default() -> Self {
         InheritanceConfig {
             extends: None,
-            possible_super_trait: false
+            possible_super_trait: false,
         }
     }
 }

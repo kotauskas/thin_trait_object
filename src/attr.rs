@@ -1,6 +1,13 @@
 //! The main body of the attribute macro. Uses entirely `proc_macro2` stuff to make unit testing possible — compile error conversions and `proc_macro` conversions are delegated to the crate root wrapper.
 
 use super::{marker_traits::*, options::*, repr::*, trait_object::*, vtable::*};
+use crate::inheritance::{
+    handle_extends,
+    handle_possible_super_trait,
+    ExtendsSuperTrait,
+    InheritanceConfig,
+    PossibleSuperTrait,
+};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote};
 use std::convert::TryFrom;
@@ -16,7 +23,6 @@ use syn::{
     TraitBound,
     Visibility,
 };
-use crate::inheritance::{handle_possible_super_trait, InheritanceConfig, PossibleSuperTrait, ExtendsSuperTrait, handle_extends};
 
 pub fn attribute_main(attr: TokenStream, item: TokenStream) -> Result<TokenStream, syn::Error> {
     let options = Punctuated::parse_terminated.parse2(attr)?;
@@ -69,12 +75,17 @@ pub fn attribute_main(attr: TokenStream, item: TokenStream) -> Result<TokenStrea
             Some(quote!(<'_>))
         } else {
             None
-        }
+        },
     };
     let mut stash = StageStash {
         trait_name: trait_def.ident.clone(),
-        target_impl: TargetImpl::SpecificTraitObject { trait_object_name: trait_object_name.clone() },
-        super_trait: config.inheritance.as_ref().and_then(|config| config.extends.clone()),
+        target_impl: TargetImpl::SpecificTraitObject {
+            trait_object_name: trait_object_name.clone(),
+        },
+        super_trait: config
+            .inheritance
+            .as_ref()
+            .and_then(|config| config.extends.clone()),
         vtable_name,
         trait_object_name,
         repr_name,
@@ -89,9 +100,10 @@ pub fn attribute_main(attr: TokenStream, item: TokenStream) -> Result<TokenStrea
             if !cfg!(feature = "experimental-inheritance") {
                 return Err(syn::Error::new(Span::call_site(), "ERROR: Inheritance is experimental, and requires feature flag: `cfg!(feature=\"experimental-inheritance\")`"));
             }
-            possible_super_trait = handle_possible_super_trait(&mut stash, vtable_visibility.clone(), inheritance)?;
+            possible_super_trait =
+                handle_possible_super_trait(&mut stash, vtable_visibility.clone(), inheritance)?;
             extends_impl = handle_extends(&mut stash, inheritance)?;
-        },
+        }
         None => {
             possible_super_trait = None;
             extends_impl = None;
@@ -140,7 +152,7 @@ struct Config {
     drop_abi: Option<Abi>,
     marker_traits: Option<Vec<MarkerTrait>>,
     store_layout: bool,
-    inheritance: Option<InheritanceConfig>
+    inheritance: Option<InheritanceConfig>,
 }
 impl From<AttrOptions> for Config {
     fn from(options: AttrOptions) -> Self {
@@ -171,7 +183,7 @@ impl From<AttrOptions> for Config {
                 }
                 AttrOption::StoreLayout { val, .. } => {
                     config.store_layout = val.value;
-                },
+                }
                 AttrOption::Inheritance { options, .. } => {
                     config.inheritance = Some(InheritanceConfig::from(options))
                 }
@@ -196,35 +208,35 @@ impl Default for Config {
             drop_abi: None,
             marker_traits: None,
             store_layout: false,
-            inheritance: None
+            inheritance: None,
         }
     }
 }
 #[derive(Clone)]
 pub enum TargetImpl {
     /// Indicates that the implementation should be generated for a specific trait object (ie. BoxedFoo)
-    SpecificTraitObject {
-        trait_object_name: TraitObjectName
-    },
+    SpecificTraitObject { trait_object_name: TraitObjectName },
     /// Indicates that the implementation should be generated for a blanket trait implementation.
     ///
     /// This is used with inheritance, so that sub-trait will auto-implement their super-traits
     BlanketTrait {
         trait_name: Ident,
-        vtable_method: Ident
-    }
+        vtable_method: Ident,
+    },
 }
 impl TargetImpl {
     pub fn data_ptr_method_name(&self) -> Ident {
         match *self {
             TargetImpl::SpecificTraitObject { .. } => Ident::new("as_raw", Span::call_site()),
-            TargetImpl::BlanketTrait { .. } => Ident::new("data_ptr", Span::call_site())
+            TargetImpl::BlanketTrait { .. } => Ident::new("data_ptr", Span::call_site()),
         }
     }
     pub fn vtable_method_name(&self) -> Ident {
         match *self {
             TargetImpl::SpecificTraitObject { .. } => Ident::new("vtable", Span::call_site()),
-            TargetImpl::BlanketTrait { ref vtable_method, .. } => vtable_method.clone(),
+            TargetImpl::BlanketTrait {
+                ref vtable_method, ..
+            } => vtable_method.clone(),
         }
     }
 }

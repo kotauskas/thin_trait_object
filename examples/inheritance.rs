@@ -1,19 +1,11 @@
 use thin_trait_object::*;
 
-#[thin_trait_object(
-    inheritance(
-        possible_super_trait = true
-    )
-)]
+#[thin_trait_object(inheritance(possible_super_trait = true))]
 pub trait Bar {
     fn baring(&self, extra: i32);
 }
 
-#[thin_trait_object(
-    inheritance(
-        extends(Bar)
-    )
-)]
+#[thin_trait_object(inheritance(extends(Bar)))]
 pub trait Foo: Bar {
     fn fooify(&self, extra_data: &str);
 }
