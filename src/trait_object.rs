@@ -104,7 +104,7 @@ pub fn generate_trait_object<'a>(
     let attributes = attributes.into_iter();
     let marker_impls = markers.into_iter().map(|marker_trait| MarkerToImpl {
         marker_trait,
-        implementor: &trait_object_name,
+        implementor: trait_object_name,
     });
 
     let vtable_method_name = target_impl.vtable_method_name();

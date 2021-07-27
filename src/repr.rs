@@ -24,8 +24,8 @@ pub fn generate_repr(
         ..
     } = stash;
     let (vtable_contents, thunk_methods) = generate_vtable_and_thunks(
-        &trait_name,
-        &repr_name,
+        trait_name,
+        repr_name,
         vtable_items.iter().cloned(),
         |_| true, // TODO
     );
@@ -170,13 +170,13 @@ fn generate_vtable_and_thunks(
             // offsetting into the actual value.
             write_thunk(
                 &name,
-                &repr_name,
+                repr_name,
                 thunk_signature,
                 thunk_call_args,
                 &mut thunk_methods,
             );
         } else {
-            write_vtable_single_hop_entry(&entry.name, &trait_name, &mut vtable_contents);
+            write_vtable_single_hop_entry(&entry.name, trait_name, &mut vtable_contents);
         }
     }
     (vtable_contents, thunk_methods)

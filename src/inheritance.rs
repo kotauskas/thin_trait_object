@@ -172,8 +172,7 @@ pub fn handle_extends(
         let super_trait_blanket_impl = blanket_trait_name(super_trait.clone());
         Ok(Some(ExtendsSuperTrait {
             our_target: stash.target_impl.clone(),
-            super_trait_blanket_impl,
-            super_vtable_type: super_vtable_type.into(),
+            super_trait_blanket_impl, super_vtable_type,
             super_trait: super_trait.clone(),
         }))
     } else {
