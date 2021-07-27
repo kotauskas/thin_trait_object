@@ -372,6 +372,10 @@ pub fn thin_trait_object(attr: TokenStream, mut item: TokenStream) -> TokenStrea
 
 #[macro_use]
 pub(crate) mod util {
+    use syn::Path;
+    use proc_macro2::Ident;
+    use syn::spanned::Spanned;
+    use quote::ToTokens;
     macro_rules! define_path {
         (::, $($segment:literal),+) => {{
             ::syn::Path {
@@ -420,6 +424,62 @@ pub(crate) mod util {
             segments
         }};
     }
+    pub trait IdentOrPath: Clone + Spanned + ToTokens {
+        fn simple_name(&self) -> &Ident;
+        fn with_simple_name(self, simple_name: Ident) -> Self;
+        fn into_path(self) -> Path;
+        fn print(&self) -> String;
+    }
+    impl IdentOrPath for Ident {
+        #[inline]
+        fn simple_name(&self) -> &Ident {
+            self
+        }
+
+        fn with_simple_name(self, simple_name: Ident) -> Self {
+            simple_name
+        }
+
+        fn into_path(self) -> Path {
+            Path::from(self)
+        }
+
+        fn print(&self) -> String {
+            self.to_string()
+        }
+    }
+    impl IdentOrPath for Path {
+        fn simple_name(&self) -> &Ident {
+            &self.segments.last().expect("Empty path").ident
+        }
+
+        fn with_simple_name(mut self, simple_name: Ident) -> Self {
+            self.segments.last_mut().expect("Empty path").ident = simple_name;
+            self
+        }
+
+        #[inline]
+        fn into_path(self) -> Path {
+            self
+        }
+
+        fn print(&self) -> String {
+            // NOTE: Ignores generic params
+            let mut res = String::new();
+            if self.segments.is_empty() {
+                return "ERROR_EmptyType".to_string();
+            }
+            let mut needs_colon = self.leading_colon.is_some();
+            for segment in &self.segments {
+                if needs_colon {
+                    res.push_str("::");
+                }
+                res.push_str(&segment.ident.to_string());
+                needs_colon = true;
+            }
+            res
+        }
+    }
 }
 
 mod attr;
@@ -429,6 +489,7 @@ pub(crate) mod options;
 pub(crate) mod repr;
 pub(crate) mod trait_object;
 pub(crate) mod vtable;
+pub(crate) mod inheritance;
 
 /// Convinces [`cargo geiger`] that the crate has unsafe code.
 ///
