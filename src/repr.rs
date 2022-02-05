@@ -189,7 +189,7 @@ fn write_thunk(
                 *(__thintraitobjectmacro_arg0
                     as *mut #repr_name<__ThinTraitObjectMacro_ReprGeneric0>
                 )
-            ).__thintraitobjectmacro_repr_value.#name(#(#args)*)
+            ).__thintraitobjectmacro_repr_value.#name(#(#args),*)
         }
     })
     .to_tokens(out);
