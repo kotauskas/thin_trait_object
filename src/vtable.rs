@@ -1,6 +1,7 @@
 //! Generates the vtable struct itself.
 
 use crate::attr::StageStash;
+use crate::inheritance::super_vtable_type;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
 use replace_with::replace_with_or_abort;
@@ -47,6 +48,7 @@ pub fn generate_vtable(
     let StageStash {
         vtable_items: items,
         vtable_name: name,
+        ref super_trait,
         ..
     } = stash;
     let all_attributes = {
@@ -104,6 +106,12 @@ pub fn generate_vtable(
     let debug_impl_lines = items.iter().cloned().map(VtableItemToDebugImplLine);
     let hash_impl_lines = items.iter().cloned().map(VtableItemToHashImplLine);
     let name_strlit = LitStr::new(&name.to_string(), Span::call_site());
+    let super_trait_decl = if let Some(ref super_trait) = super_trait {
+        let super_vtable_type = super_vtable_type(super_trait);
+        quote!(pub super_trait_vtable: #super_vtable_type,)
+    } else {
+        quote!()
+    };
     let size_and_align = if store_layout {
         quote! {
             pub size: usize,
@@ -112,13 +120,31 @@ pub fn generate_vtable(
     } else {
         quote! {}
     };
+    let drop_func = if super_trait.is_none() {
+        quote! { pub drop: unsafe #drop_abi fn(*mut ::core::ffi::c_void), }
+    } else {
+        // only super-trait has the drop func, saving space
+        quote! {}
+    };
+    let drop_impl = if super_trait.is_some() {
+        quote!(self.super_trait_vtable.invoke_drop(ptr))
+    } else {
+        quote!((self.drop)(ptr))
+    };
     quote! {
         #[derive(Copy, Clone)]
         #all_attributes
         #visibility struct #name {
+            #super_trait_decl
             #size_and_align
             #(pub #vtable_entries,)*
-            pub drop: unsafe #drop_abi fn(*mut ::core::ffi::c_void),
+            #drop_func
+        }
+        impl #name {
+            #[inline]
+            pub unsafe fn invoke_drop(&self, ptr: *mut core::ffi::c_void) {
+                #drop_impl
+            }
         }
         impl ::core::fmt::Debug for #name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {

@@ -10,6 +10,7 @@ use syn::{
     Attribute,
     LitBool,
     LitStr,
+    Path,
     Token,
     Visibility,
 };
@@ -17,6 +18,7 @@ use syn::{
 use crate::marker_traits::MarkerTrait;
 
 pub type AttrOptions = Punctuated<AttrOption, Token![,]>;
+pub type InheritanceOptions = Punctuated<InheritanceOption, Token![,]>;
 
 pub enum AttrOption {
     /// Overrides the visibility modifier, name and optionally adds attributes to the generated vtable struct.
@@ -123,6 +125,24 @@ pub enum AttrOption {
         eq: Token![=],
         val: LitBool,
     },
+    /// Specifies options for inheritance.
+    ///
+    /// ## Example
+    /// ```rust
+    /// # /*
+    /// #[thin_trait_object(
+    ///     inheritance(
+    ///         extends(SuperTrait),
+    ///         possible_supertrait = true
+    ///     )
+    /// )]
+    /// # */
+    /// ```
+    Inheritance {
+        name: custom_token::Inheritance,
+        paren: token::Paren,
+        options: InheritanceOptions,
+    },
 }
 impl Parse for AttrOption {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
@@ -169,11 +189,64 @@ impl Parse for AttrOption {
                 eq: input.parse()?,
                 val: input.parse()?,
             },
+            "inheritance" => {
+                let inside_parens;
+                Self::Inheritance {
+                    name: custom_token::Inheritance(ident.span()),
+                    paren: parenthesized!(inside_parens in input),
+                    options: inside_parens.call(Punctuated::parse_terminated)?,
+                }
+            }
             _ => {
                 return Err(syn::Error::new_spanned(
                     ident,
                     "\
-expected `vtable`, `inline_vtable`, `trait_object`, `drop_abi` or `marker_traits`",
+expected `vtable`, `inline_vtable`, `trait_object`, `drop_abi`, `inheritance`, or `marker_traits`",
+                ));
+            }
+        };
+        Ok(option)
+    }
+}
+
+pub enum InheritanceOption {
+    /// Specifies the supertrait
+    Extends {
+        name: custom_token::Extends,
+        paren: token::Paren,
+        super_type: Path,
+    },
+    /// Specifies whether this type is a possible supertrait
+    PossibleSuperTrait {
+        name: custom_token::PossibleSuperTrait,
+        eq: Token![=],
+        val: LitBool,
+    },
+}
+impl Parse for InheritanceOption {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        let ident = input.parse::<Ident>()?;
+        // see above
+        #[allow(clippy::eval_order_dependence)]
+        let option = match ident.to_string().borrow() {
+            "extends" => {
+                let inside_parens;
+                Self::Extends {
+                    name: custom_token::Extends(ident.span()),
+                    paren: parenthesized!(inside_parens in input),
+                    super_type: inside_parens.parse()?,
+                }
+            }
+            "possible_super_trait" => Self::PossibleSuperTrait {
+                name: custom_token::PossibleSuperTrait(ident.span()),
+                eq: input.parse()?,
+                val: input.parse()?,
+            },
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    ident,
+                    "\
+expected `extends`, `possible_super_trait`",
                 ));
             }
         };
@@ -198,6 +271,7 @@ impl Parse for OutputAdditions {
 
 pub mod custom_token {
     use proc_macro2::Span;
+    use syn::spanned::Spanned;
     use syn::{
         parse::{Parse, ParseStream},
         Ident,
@@ -221,6 +295,12 @@ pub mod custom_token {
                     }
                 }
             }
+            impl Spanned for $name {
+                #[inline]
+                fn span(&self) -> Span {
+                    self.0
+                }
+            }
         );
         ($(($name:ident, $string:literal)),+ $(,)?) => (
             $(custom_tokens!($name, $string);)*
@@ -234,5 +314,8 @@ pub mod custom_token {
         (DropAbi, "drop_abi"),
         (MarkerTraits, "marker_traits"),
         (StoreLayout, "store_layout"),
+        (Inheritance, "inheritance"),
+        (Extends, "extends"),
+        (PossibleSuperTrait, "possible_super_trait")
     }
 }

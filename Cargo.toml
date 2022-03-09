@@ -25,10 +25,20 @@ quote = "1.0"
 replace_with = "0.1"
 # Sadly cannot use the default configuration because it can't parse traits
 syn = { version = "1.0", features = ["full", "extra-traits"] }
+heck = "0.3"
+
+[[example]]
+name = "inheritance"
+required-features = ["experimental-inheritance"]
 
 [features]
 default = ["std"]
 std = []
+# Specifies the expirmental support for inheritance
+#
+# Since this is experimental, it is not bound
+# by the normal semantic-versioning guarentees
+experimental-inheritance = []
 
 [profile.dev]
 opt-level = 1 # Procedural macros are never compiled in release mode
